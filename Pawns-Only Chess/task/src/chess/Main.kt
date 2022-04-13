@@ -374,6 +374,15 @@ fun main() {
             continue
         }
 
+        // check win condition
+        //The program should check whether the winning or stalemate
+        // conditions are met after each turn.
+        // If the winning conditions are fulfilled, print White Wins!
+        // or Black Wins!, depending on the situation.
+        // Then, print Bye! and exit the program.
+        // If it's a stalemate, print Stalemate!, Bye! and exit the program.
+
+
         board.print()
         //toggle active player
         playersTurn = playersTurn xor 1
