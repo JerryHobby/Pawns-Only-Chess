@@ -9,9 +9,9 @@ import java.time.format.DateTimeFormatter
 // The validateMove function is a bit long.  There's some cleanup to do on how
 // board coordinates are stored and used.  But overall it's a good version.
 //
-// I also created a "test" command that enables move "test" command that
-// makes testing much easier because moves do not actually get made.  That's
-// also how I validate the "no more moves" condition.
+// I also created a "test" command that makes testing and validation
+// much easier because moves do not actually get made.  That's
+// also how I validate the "stalemate" condition.  No duplication of logic.
 
 class ChessBoard {
     private val boardSize: Int = 8
@@ -20,9 +20,6 @@ class ChessBoard {
         var piece: String = " "
     }
 
-    // define the double array that holds all the squares.  A few variations.
-    // val board = MutableList(boardSize) { MutableList(boardSize) { Square() } }
-    // val board = Array(boardSize) { row -> Array(boardSize) { col -> Square() } }
     private val board = Array(boardSize) { Array(boardSize) { Square() } }
 
     init {
@@ -38,7 +35,12 @@ class ChessBoard {
     }
 
     fun movePiece(player: Player, fromX: Int, fromY: Int, toX: Int, toY: Int): Int {
-        if ((fromX < 0 || fromX >= boardSize) || (fromY < 0 || fromY >= boardSize) || (toX < 0 || toX >= boardSize) || (toY < 0 || toY >= boardSize)) return 0
+        if ((fromX < 0 || fromX >= boardSize) ||
+            (fromY < 0 || fromY >= boardSize) ||
+            (toX < 0 || toX >= boardSize) ||
+            (toY < 0 || toY >= boardSize)
+        )
+            return 0
 
         board[toX][toY].piece = board[fromX][fromY].piece
         board[fromX][fromY].piece = " "
@@ -94,8 +96,6 @@ class ChessBoard {
 }
 
 class History {
-    //    private val board = Array(boardSize) { Array(boardSize) { Square() } }
-    // var history = mutableListOf(mutableListOf(2, { String() }))
     var history = mutableListOf<List<String>>()
 
     fun add(from: String, to: String, action: String = " ") {
@@ -119,7 +119,7 @@ class Player {
     var color: String = " "
     var score: Int = 8
     val homeX: Int
-        get () {
+        get() {
             if (color == "W")
                 return 2
             if (color == "B")
@@ -127,7 +127,7 @@ class Player {
             return 0
         }
     val direction: Int
-        get () {
+        get() {
             if (color == "W")
                 return 1
             if (color == "B")
@@ -136,12 +136,14 @@ class Player {
         }
 }
 
-fun validMove(board: ChessBoard,
-              player: Player,
-              opponent: Player,
-              move: String,
-              history: History,
-              makeMove: Boolean = true): String {
+fun validMove(
+    board: ChessBoard,
+    player: Player,
+    opponent: Player,
+    move: String,
+    history: History,
+    makeMove: Boolean = true
+): String {
 
     // validate syntax
     if (move.matches(("[a-hA-H][1-8][a-hA-H][1-8]").toRegex()) == false) {
@@ -154,7 +156,11 @@ fun validMove(board: ChessBoard,
     val toX: Int = move[3].digitToInt()
     val fromPiece: String = board.getPiece(move.substring(0, 2))
     val toPiece: String = board.getPiece(move.substring(2, 4))
-    val skipPiece: String = board.getPiece("%s%d".format(fromY, player.homeX + (1 * player.direction)))
+    val skipPiece: String = board.getPiece(
+        "%s%d".format(
+            fromY, player.homeX + (1 * player.direction)
+        )
+    )
     var action: String = " "  // used for history
 
     // verify "from" piece is there and correct piece
@@ -199,7 +205,7 @@ fun validMove(board: ChessBoard,
             return "Invalid Input"
         }
 
-        if(makeMove) {
+        if (makeMove) {
             // make the move - one or two spaces as requested
             if (board.movePiece(player, move) == 0) {
                 return "Invalid Input"
@@ -226,7 +232,7 @@ fun validMove(board: ChessBoard,
         action = "x"
         // make the move - one or two spaces as requested
 
-        if(makeMove) {
+        if (makeMove) {
             if (board.movePiece(player, move) == 0) {
                 return "Invalid Input"
             }
@@ -268,7 +274,7 @@ fun validMove(board: ChessBoard,
         // make the move - one or two spaces as requested
 
         // successful
-        if(makeMove) {
+        if (makeMove) {
             if (board.movePiece(player, move) == 0) {
                 return "Invalid Input"
             }
@@ -280,6 +286,98 @@ fun validMove(board: ChessBoard,
     }
     // should never reach here
     return "Invalid Input"
+}
+
+fun gameOver(board: ChessBoard, player1: Player, player2: Player, history: History): Int {
+    var whiteCanMove = false
+    var blackCanMove = false
+    var coord: String
+
+    if (player2.score == 0) {
+        println("White Wins!")
+        return 1
+    }
+    if (player1.score == 0) {
+        println("Black Wins!")
+        return 2
+    }
+
+    // find winning piece in row 1 or 8
+    for (y in 'A'..'H') {
+        coord = "${y}8"
+        if (board.getPiece(coord) != " ") {
+            println("White Wins!")
+            return 1
+        }
+        coord = "${y}1"
+        if (board.getPiece(coord) != " ") {
+            println("Black Wins!")
+            return 2
+        }
+    }
+
+    // find all remaining pieces
+    val whiteSquares = mutableListOf<String>()
+    val blackSquares = mutableListOf<String>()
+
+    for (x in '1'..'8') {
+        for (y in 'A'..'H') {
+            coord = "${y}${x}"
+            if (board.getPiece(coord) == "W") {
+                whiteSquares.add(coord)
+            }
+            if (board.getPiece(coord) == "B") {
+                blackSquares.add(coord)
+            }
+        }
+    }
+
+    // can they move forward one space?
+    for (piece in whiteSquares) {
+        val dest = "${piece[0]}${piece[1] + 1}"
+        val move = piece + dest
+        val result = validMove(board, player1, player2, move, history, makeMove = false)
+        if (result == "OK") whiteCanMove = true // move found
+    }
+    for (piece in blackSquares) {
+        val dest = "${piece[0]}${piece[1] - 1}"
+        val move = piece + dest
+        val result = validMove(board, player2, player1, move, history, makeMove = false)
+        if (result == "OK") blackCanMove = true // move found
+    }
+    // can they enpassant?
+    // we can brute force these - validateMove will check the details
+
+    for (piece in whiteSquares) {
+        var dest = "${piece[0] + 1}${piece[1] + 1}"
+        var move = piece + dest
+        var result = validMove(board, player1, player2, move, history, makeMove = false)
+        if (result == "OK") whiteCanMove = true // move found
+
+        // try the other direction
+        dest = "${piece[0] - 1}${piece[1] + 1}"
+        move = piece + dest
+        result = validMove(board, player1, player2, move, history, makeMove = false)
+        if (result == "OK") whiteCanMove = true // move found
+    }
+
+    for (piece in blackSquares) {
+        var dest = "${piece[0] + 1}${piece[1] - 1}"
+        var move = piece + dest
+        var result = validMove(board, player2, player1, move, history, makeMove = false)
+        if (result == "OK") blackCanMove = true // move found
+
+        // try the other direction
+        dest = "${piece[0] - 1}${piece[1] - 1}"
+        move = piece + dest
+        result = validMove(board, player2, player1, move, history, makeMove = false)
+        if (result == "OK") blackCanMove = true // move found
+    }
+    if (whiteCanMove && blackCanMove)
+        return 0
+
+    println("Stalemate!")
+    return 3
 }
 
 fun main() {
@@ -350,7 +448,7 @@ fun main() {
         }
 
         if (command == "test") {
-            if(makeMove) {
+            if (makeMove) {
                 println("Testing mode")
                 makeMove = false
             } else {
@@ -361,8 +459,10 @@ fun main() {
         }
 
         var rcMsg: String
-        rcMsg = validMove( board, player[playersTurn], player[opponentsTurn],
-            command, history, makeMove)
+        rcMsg = validMove(
+            board, player[playersTurn], player[opponentsTurn],
+            command, history, makeMove
+        )
 
         if (makeMove == false) {
             println("Test: ${rcMsg}")
@@ -373,17 +473,11 @@ fun main() {
             println(rcMsg)
             continue
         }
-
-        // check win condition
-        //The program should check whether the winning or stalemate
-        // conditions are met after each turn.
-        // If the winning conditions are fulfilled, print White Wins!
-        // or Black Wins!, depending on the situation.
-        // Then, print Bye! and exit the program.
-        // If it's a stalemate, print Stalemate!, Bye! and exit the program.
-
-
         board.print()
+
+        val win = gameOver(board, player[0], player[1], history)
+        if (win != 0) break
+
         //toggle active player
         playersTurn = playersTurn xor 1
         opponentsTurn = opponentsTurn xor 1
